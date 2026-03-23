@@ -1,19 +1,13 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-
-    // Add Plugins
     alias(libs.plugins.dagger.hilt.android)
     alias(libs.plugins.devtools.ksp)
 }
 
 android {
     namespace = "org.delcom.pam_proyek1_ifs23049"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "org.delcom.pam_proyek1_ifs23049"
@@ -46,7 +40,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // buildFeatures harus di sini, sejajar dengan defaultConfig
     buildFeatures {
         compose = true
         buildConfig = true
@@ -73,27 +66,18 @@ dependencies {
 
     // Add Library
     // ================================================
-    // Material 3
     implementation(libs.androidx.compose.material3)
-    // > Google Font
     implementation(libs.androidx.ui.text.google.fonts)
-    // > Navhost
     implementation(libs.androidx.navigation.compose)
-    // > Icon
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.material3)
-    // > Coil
     implementation(libs.coil.compose)
-    // > Retrofit
     implementation(libs.retrofit2)
     implementation(libs.retrofit2.converter.gson)
-    // ← retrofit2.kotlinx.serialization.converter DIHAPUS
-    // ← kotlinx.serialization.json DIHAPUS
-    // > Okhttp3
     implementation(libs.okhttp3)
     implementation(libs.okhttp3.logging.interceptor)
-    // > Dagger
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.androidx.datastore.preferences)
     // ================================================
 }

@@ -3,6 +3,9 @@ package org.delcom.pam_proyek1_ifs23049.ui.viewmodels
 import androidx.annotation.Keep
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
+import com.google.gson.JsonElement
+import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,82 +59,81 @@ class LibraryViewModel @Inject constructor(
     private val repository: ILibraryRepository
 ) : ViewModel() {
 
+    private val gson = Gson()
     private val _uiState = MutableStateFlow(UIStateLibrary())
     val uiState = _uiState.asStateFlow()
+
+    private fun JsonElement?.field(key: String): JsonElement? {
+        if (this == null || !this.isJsonObject) return null
+        val v = this.asJsonObject.get(key)
+        return if (v == null || v.isJsonNull) null else v
+    }
+
+    private inline fun <reified T> JsonElement?.parse(): T? {
+        if (this == null || this.isJsonNull) return null
+        return try {
+            gson.fromJson<T>(this, object : TypeToken<T>() {}.type)
+        } catch (e: Exception) {
+            android.util.Log.e("PARSE_ERROR", "Failed to parse ${T::class.java.simpleName}: ${e.message}")
+            null
+        }
+    }
+
+    fun resetBookAdd() {
+        _uiState.update { it.copy(bookAdd = BookActionUIState.Loading) }
+    }
 
     fun getProfile(authToken: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(profile = ProfileUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.getUserMe(authToken)
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success" && it.data != null)
-                            ProfileUIState.Success(it.data.user)
-                        else ProfileUIState.Error(it.message)
-                    },
-                    onFailure = { ProfileUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(profile = result)
-            }
+            val result = runCatching { repository.getUserMe(authToken) }.fold(
+                onSuccess = { res ->
+                    if (res.status == "success") {
+                        val user = res.data.field("user").parse<ResponseUserData>()
+                        if (user != null) ProfileUIState.Success(user)
+                        else ProfileUIState.Error("Data user tidak ditemukan")
+                    } else ProfileUIState.Error(res.message)
+                },
+                onFailure = { ProfileUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(profile = result) }
         }
     }
 
     fun putUserMe(authToken: String, name: String, username: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(userChange = BookActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.putUserMe(authToken, RequestUserChange(name, username))
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") BookActionUIState.Success(it.message)
-                        else BookActionUIState.Error(it.message)
-                    },
-                    onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(userChange = result)
-            }
+            val result = runCatching {
+                repository.putUserMe(authToken, RequestUserChange(name, username))
+            }.fold(
+                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
+                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(userChange = result) }
         }
     }
 
     fun putUserMePassword(authToken: String, password: String, newPassword: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(userChangePassword = BookActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.putUserMePassword(
-                        authToken,
-                        RequestUserChangePassword(password, newPassword)
-                    )
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") BookActionUIState.Success(it.message)
-                        else BookActionUIState.Error(it.message)
-                    },
-                    onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(userChangePassword = result)
-            }
+            val result = runCatching {
+                repository.putUserMePassword(authToken, RequestUserChangePassword(password, newPassword))
+            }.fold(
+                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
+                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(userChangePassword = result) }
         }
     }
 
     fun putUserMePhoto(authToken: String, file: MultipartBody.Part) {
         viewModelScope.launch {
             _uiState.update { it.copy(userChangePhoto = BookActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.putUserMePhoto(authToken, file)
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") BookActionUIState.Success(it.message)
-                        else BookActionUIState.Error(it.message)
-                    },
-                    onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(userChangePhoto = result)
-            }
+            val result = runCatching { repository.putUserMePhoto(authToken, file) }.fold(
+                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
+                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(userChangePhoto = result) }
         }
     }
 
@@ -144,160 +146,99 @@ class LibraryViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _uiState.update { it.copy(books = BooksUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.getBooks(authToken, search, page, perPage, null, isRead)
-                }.fold(
-                    onSuccess = {
-                        android.util.Log.d("BOOKS_DEBUG", "status: ${it.status}")
-                        android.util.Log.d("BOOKS_DEBUG", "message: ${it.message}")
-                        android.util.Log.d("BOOKS_DEBUG", "data: ${it.data}")
-                        android.util.Log.d("BOOKS_DEBUG", "data class: ${it.data?.javaClass?.name}")
-                        if (it.status == "success" && it.data != null)
-                            BooksUIState.Success(it.data.books)
-                        else BooksUIState.Error(it.message)
-                    },
-                    onFailure = {
-                        android.util.Log.e("BOOKS_DEBUG", "error: ${it.message}", it)
-                        BooksUIState.Error(it.message ?: "Unknown error")
-                    }
-                )
-                state.copy(books = result)
-            }
+            val result = runCatching {
+                repository.getBooks(authToken, search, page, perPage, null, isRead)
+            }.fold(
+                onSuccess = { res ->
+                    android.util.Log.d("BOOKS_DEBUG", "status=${res.status} data=${res.data}")
+                    if (res.status == "success") {
+                        val books = res.data.field("books").parse<List<ResponseBookData>>() ?: emptyList()
+                        BooksUIState.Success(books)
+                    } else BooksUIState.Error(res.message)
+                },
+                onFailure = {
+                    android.util.Log.e("BOOKS_DEBUG", "error: ${it.message}", it)
+                    BooksUIState.Error(it.message ?: "Unknown error")
+                }
+            )
+            _uiState.update { it.copy(books = result) }
         }
     }
 
     fun getBookById(authToken: String, bookId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(book = BookUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.getBookById(authToken, bookId)
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success" && it.data != null)
-                            BookUIState.Success(it.data.book)
-                        else BookUIState.Error(it.message)
-                    },
-                    onFailure = { BookUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(book = result)
-            }
+            val result = runCatching { repository.getBookById(authToken, bookId) }.fold(
+                onSuccess = { res ->
+                    if (res.status == "success") {
+                        val book = res.data.field("book").parse<ResponseBookData>()
+                        if (book != null) BookUIState.Success(book)
+                        else BookUIState.Error("Data buku tidak ditemukan")
+                    } else BookUIState.Error(res.message)
+                },
+                onFailure = { BookUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(book = result) }
         }
     }
 
     fun postBook(
         authToken: String,
-        title: String,
-        author: String,
-        description: String,
-        genre: String,
-        isbn: String?,
-        publisher: String?,
-        year: Int?
+        title: String, author: String, description: String,
+        genre: String, isbn: String?, publisher: String?, year: Int?
     ) {
         viewModelScope.launch {
             _uiState.update { it.copy(bookAdd = BookActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.postBook(
-                        authToken,
-                        RequestBook(
-                            title = title,
-                            author = author,
-                            description = description,
-                            genre = genre,
-                            isbn = isbn,
-                            publisher = publisher,
-                            year = year
-                        )
-                    )
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") BookActionUIState.Success(it.message)
-                        else BookActionUIState.Error(it.message)
-                    },
-                    onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(bookAdd = result)
+            val result = runCatching {
+                repository.postBook(authToken, RequestBook(title, author, description, genre, isbn, publisher, year))
+            }.fold(
+                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
+                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(bookAdd = result) }
+            // ✅ Langsung refresh list setelah berhasil tambah
+            if (result is BookActionUIState.Success) {
+                getAllBooks(authToken)
             }
         }
     }
 
     fun putBook(
-        authToken: String,
-        bookId: String,
-        title: String,
-        author: String,
-        description: String,
-        genre: String,
-        isbn: String?,
-        publisher: String?,
-        year: Int?,
-        isRead: Boolean
+        authToken: String, bookId: String,
+        title: String, author: String, description: String,
+        genre: String, isbn: String?, publisher: String?, year: Int?, isRead: Boolean
     ) {
         viewModelScope.launch {
             _uiState.update { it.copy(bookChange = BookActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.putBook(
-                        authToken, bookId,
-                        RequestBook(
-                            title = title,
-                            author = author,
-                            description = description,
-                            genre = genre,
-                            isbn = isbn,
-                            publisher = publisher,
-                            year = year,
-                            isRead = isRead
-                        )
-                    )
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") BookActionUIState.Success(it.message)
-                        else BookActionUIState.Error(it.message)
-                    },
-                    onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(bookChange = result)
-            }
+            val result = runCatching {
+                repository.putBook(authToken, bookId, RequestBook(title, author, description, genre, isbn, publisher, year, isRead))
+            }.fold(
+                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
+                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(bookChange = result) }
         }
     }
 
     fun putBookCover(authToken: String, bookId: String, file: MultipartBody.Part) {
         viewModelScope.launch {
             _uiState.update { it.copy(bookChangeCover = BookActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.putBookCover(authToken, bookId, file)
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") BookActionUIState.Success(it.message)
-                        else BookActionUIState.Error(it.message)
-                    },
-                    onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(bookChangeCover = result)
-            }
+            val result = runCatching { repository.putBookCover(authToken, bookId, file) }.fold(
+                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
+                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(bookChangeCover = result) }
         }
     }
 
     fun deleteBook(authToken: String, bookId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(bookDelete = BookActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.deleteBook(authToken, bookId)
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") BookActionUIState.Success(it.message)
-                        else BookActionUIState.Error(it.message)
-                    },
-                    onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(bookDelete = result)
-            }
+            val result = runCatching { repository.deleteBook(authToken, bookId) }.fold(
+                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
+                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(bookDelete = result) }
         }
     }
 }

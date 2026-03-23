@@ -7,55 +7,39 @@ import retrofit2.http.*
 
 interface LibraryApiService {
 
-    // ── Auth ──────────────────────────────────────────────────────
-
     @POST("auth/register")
-    suspend fun postRegister(
-        @Body request: RequestAuthRegister
-    ): ResponseMessage<ResponseAuthRegister?>
+    suspend fun postRegister(@Body request: RequestAuthRegister): ResponseMessage
 
     @POST("auth/login")
-    suspend fun postLogin(
-        @Body request: RequestAuthLogin
-    ): ResponseMessage<ResponseAuthLogin?>
+    suspend fun postLogin(@Body request: RequestAuthLogin): ResponseMessage
 
     @POST("auth/logout")
-    suspend fun postLogout(
-        @Body request: RequestAuthLogout
-    ): ResponseMessage<String?>
+    suspend fun postLogout(@Body request: RequestAuthLogout): ResponseMessage
 
     @POST("auth/refresh-token")
-    suspend fun postRefreshToken(
-        @Body request: RequestAuthRefreshToken
-    ): ResponseMessage<ResponseAuthLogin?>
-
-    // ── User ──────────────────────────────────────────────────────
+    suspend fun postRefreshToken(@Body request: RequestAuthRefreshToken): ResponseMessage
 
     @GET("users/me")
-    suspend fun getUserMe(
-        @Header("Authorization") authToken: String
-    ): ResponseMessage<ResponseUser?>
+    suspend fun getUserMe(@Header("Authorization") authToken: String): ResponseMessage
 
     @PUT("users/me")
     suspend fun putUserMe(
         @Header("Authorization") authToken: String,
         @Body request: RequestUserChange
-    ): ResponseMessage<String?>
+    ): ResponseMessage
 
     @PUT("users/me/password")
     suspend fun putUserMePassword(
         @Header("Authorization") authToken: String,
         @Body request: RequestUserChangePassword
-    ): ResponseMessage<String?>
+    ): ResponseMessage
 
     @Multipart
     @PUT("users/me/photo")
     suspend fun putUserMePhoto(
         @Header("Authorization") authToken: String,
         @Part file: MultipartBody.Part
-    ): ResponseMessage<String?>
-
-    // ── Book ──────────────────────────────────────────────────────
+    ): ResponseMessage
 
     @GET("books")
     suspend fun getBooks(
@@ -65,26 +49,26 @@ interface LibraryApiService {
         @Query("perPage") perPage: Int? = null,
         @Query("genre") genre: String? = null,
         @Query("is_read") isRead: String? = null
-    ): ResponseMessage<ResponseBooks?>
+    ): ResponseMessage
 
     @POST("books")
     suspend fun postBook(
         @Header("Authorization") authToken: String,
         @Body request: RequestBook
-    ): ResponseMessage<ResponseBookAdd?>
+    ): ResponseMessage
 
     @GET("books/{id}")
     suspend fun getBookById(
         @Header("Authorization") authToken: String,
         @Path("id") bookId: String
-    ): ResponseMessage<ResponseBook?>
+    ): ResponseMessage
 
     @PUT("books/{id}")
     suspend fun putBook(
         @Header("Authorization") authToken: String,
         @Path("id") bookId: String,
         @Body request: RequestBook
-    ): ResponseMessage<String?>
+    ): ResponseMessage
 
     @Multipart
     @PUT("books/{id}/cover")
@@ -92,11 +76,11 @@ interface LibraryApiService {
         @Header("Authorization") authToken: String,
         @Path("id") bookId: String,
         @Part file: MultipartBody.Part
-    ): ResponseMessage<String?>
+    ): ResponseMessage
 
     @DELETE("books/{id}")
     suspend fun deleteBook(
         @Header("Authorization") authToken: String,
         @Path("id") bookId: String
-    ): ResponseMessage<String?>
+    ): ResponseMessage
 }

@@ -21,7 +21,7 @@ retrofit = "3.0.0"
 converterGson = "3.0.0"
 loggingInterceptor = "5.3.2"
 retrofit2KotlinxSerializationConverter = "1.0.0"
-
+datastorePreferences = "1.1.7"
 ksp = "2.3.4"
 daggerHilt = "2.59.1"
 ui = "1.10.3"
@@ -61,6 +61,7 @@ retrofit2-kotlinx-serialization-converter = { module = "com.jakewharton.retrofit
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "daggerHilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "daggerHilt" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 # ================================================
 
 [plugins]

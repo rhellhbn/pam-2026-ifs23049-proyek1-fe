@@ -49,6 +49,7 @@ fun BooksAddScreen(
                         "Buku berhasil ditambahkan!"
                     )
                 }
+                libraryViewModel.resetBookAdd()
                 RouteHelper.back(navController)
             }
             is BookActionUIState.Error -> {
@@ -59,6 +60,7 @@ fun BooksAddScreen(
                         state.message
                     )
                 }
+                hasSubmitted = false
             }
             else -> {}
         }

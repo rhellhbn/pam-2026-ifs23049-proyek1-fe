@@ -1,22 +1,17 @@
 package org.delcom.pam_proyek1_ifs23049.network.library.service
 
-import com.google.gson.GsonBuilder
-import com.google.gson.reflect.TypeToken
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import okhttp3.Interceptor
-import okhttp3.Response
 import android.util.Log
+import com.google.gson.*
+import okhttp3.*
+import okhttp3.logging.HttpLoggingInterceptor
 import org.delcom.pam_proyek1_ifs23049.network.data.ResponseMessage
-import org.delcom.pam_proyek1_ifs23049.network.library.data.ResponseBooks
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.lang.reflect.Type
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
+import javax.net.ssl.*
 
 class LibraryAppContainer : ILibraryAppContainer {
 
@@ -24,15 +19,12 @@ class LibraryAppContainer : ILibraryAppContainer {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
-    private val rawResponseInterceptor = object : Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val request = chain.request()
-            val response = chain.proceed(request)
-            val responseBody = response.peekBody(Long.MAX_VALUE)
-            Log.d("RAW_RESPONSE", "Code: ${response.code}")
-            Log.d("RAW_RESPONSE", "Body: ${responseBody.string()}")
-            return response
-        }
+    private val rawResponseInterceptor = Interceptor { chain ->
+        val response = chain.proceed(chain.request())
+        val body = response.peekBody(Long.MAX_VALUE)
+        Log.d("RAW_RESPONSE", "Code: ${response.code}")
+        Log.d("RAW_RESPONSE", "Body: ${body.string()}")
+        response
     }
 
     private val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
@@ -45,9 +37,24 @@ class LibraryAppContainer : ILibraryAppContainer {
         init(null, trustAllCerts, SecureRandom())
     }
 
-    // Gson dengan config lenient agar tidak strict
+    // Custom deserializer — baca "data" sebagai JsonElement mentah, tidak dipaksa ke tipe apapun
+    private val responseMessageDeserializer = object : JsonDeserializer<ResponseMessage> {
+        override fun deserialize(
+            json: JsonElement,
+            typeOfT: Type,
+            context: JsonDeserializationContext
+        ): ResponseMessage {
+            val obj     = json.asJsonObject
+            val status  = obj.get("status")?.asString  ?: ""
+            val message = obj.get("message")?.asString ?: ""
+            val data    = obj.get("data") // null kalau field tidak ada
+            return ResponseMessage(status, message, data)
+        }
+    }
+
     private val gson = GsonBuilder()
         .setLenient()
+        .registerTypeAdapter(ResponseMessage::class.java, responseMessageDeserializer)
         .create()
 
     private val okHttpClient = OkHttpClient.Builder().apply {

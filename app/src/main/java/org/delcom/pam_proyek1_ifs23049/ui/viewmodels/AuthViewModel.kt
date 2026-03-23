@@ -48,126 +48,108 @@ class AuthViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(UIStateAuth())
     val uiState = _uiState.asStateFlow()
 
+    private val _darkMode = MutableStateFlow<Boolean?>(null)
+    val darkMode = _darkMode.asStateFlow()
+
     fun loadTokenFromPreferences() {
         viewModelScope.launch {
             _uiState.update { it.copy(auth = AuthUIState.Loading) }
-            val authToken = authTokenPref.getAuthToken()
+            val authToken    = authTokenPref.getAuthToken()
             val refreshToken = authTokenPref.getRefreshToken()
+            _darkMode.value  = authTokenPref.getDarkMode()
             _uiState.update {
                 it.copy(
-                    auth = if (authToken.isNullOrEmpty() || refreshToken.isNullOrEmpty()) {
+                    auth = if (authToken.isNullOrEmpty() || refreshToken.isNullOrEmpty())
                         AuthUIState.Error("Token tidak tersedia")
-                    } else {
-                        AuthUIState.Success(
-                            ResponseAuthLogin(
-                                authToken = authToken,
-                                refreshToken = refreshToken
-                            )
-                        )
-                    }
+                    else
+                        AuthUIState.Success(ResponseAuthLogin(authToken, refreshToken))
                 )
             }
+        }
+    }
+
+    fun toggleDarkMode(isDark: Boolean) {
+        viewModelScope.launch {
+            authTokenPref.saveDarkMode(isDark)
+            _darkMode.value = isDark
         }
     }
 
     fun register(name: String, username: String, password: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(authRegister = AuthActionUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.postRegister(RequestAuthRegister(name, username, password))
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success") AuthActionUIState.Success(it.message)
-                        else AuthActionUIState.Error(it.message)
-                    },
-                    onFailure = { AuthActionUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(authRegister = result)
-            }
+            val result = runCatching {
+                repository.postRegister(RequestAuthRegister(name, username, password))
+            }.fold(
+                onSuccess = { if (it.status == "success") AuthActionUIState.Success(it.message) else AuthActionUIState.Error(it.message) },
+                onFailure = { AuthActionUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(authRegister = result) }
         }
     }
 
     fun login(username: String, password: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(auth = AuthUIState.Loading) }
-            _uiState.update { state ->
-                val result = runCatching {
-                    repository.postLogin(RequestAuthLogin(username, password))
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success" && it.data != null) {
-                            authTokenPref.saveAuthToken(it.data.authToken)
-                            authTokenPref.saveRefreshToken(it.data.refreshToken)
-                            AuthUIState.Success(it.data)
-                        } else AuthUIState.Error(it.message)
-                    },
-                    onFailure = { AuthUIState.Error(it.message ?: "Unknown error") }
-                )
-                state.copy(auth = result)
-            }
+            val result = runCatching {
+                repository.postLogin(RequestAuthLogin(username, password))
+            }.fold(
+                onSuccess = { res ->
+                    val dataObj      = res.data?.takeIf { it.isJsonObject }?.asJsonObject
+                    val authToken    = dataObj?.get("authToken")?.asString    ?: ""
+                    val refreshToken = dataObj?.get("refreshToken")?.asString ?: ""
+                    if (res.status == "success" && authToken.isNotEmpty()) {
+                        authTokenPref.saveAuthToken(authToken)
+                        authTokenPref.saveRefreshToken(refreshToken)
+                        AuthUIState.Success(ResponseAuthLogin(authToken, refreshToken))
+                    } else {
+                        AuthUIState.Error(res.message.ifEmpty { "Login gagal" })
+                    }
+                },
+                onFailure = { AuthUIState.Error(it.message ?: "Unknown error") }
+            )
+            _uiState.update { it.copy(auth = result) }
         }
     }
 
     fun logout(authToken: String) {
         viewModelScope.launch {
-            // Clear token dari preferences DULU
             authTokenPref.clearAuthToken()
             authTokenPref.clearRefreshToken()
-
-            // Reset state auth ke Error agar redirect ke login
-            _uiState.update {
-                it.copy(
-                    auth = AuthUIState.Error("Logout"),
-                    authLogout = AuthLogoutUIState.Loading
-                )
-            }
-
-            // Panggil API logout (tidak masalah kalau gagal)
-            runCatching {
-                repository.postLogout(RequestAuthLogout(authToken))
-            }
-
-            _uiState.update {
-                it.copy(authLogout = AuthLogoutUIState.Success("Berhasil logout"))
-            }
+            _uiState.update { it.copy(auth = AuthUIState.Error("Logout"), authLogout = AuthLogoutUIState.Loading) }
+            runCatching { repository.postLogout(RequestAuthLogout(authToken)) }
+            _uiState.update { it.copy(authLogout = AuthLogoutUIState.Success("Berhasil logout")) }
         }
     }
 
     fun refreshToken(authToken: String, refreshToken: String) {
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    auth = AuthUIState.Loading,
-                    authRefreshToken = AuthActionUIState.Loading
-                )
-            }
-            _uiState.update { state ->
-                var newAuth: AuthUIState = AuthUIState.Loading
-                var newRefresh: AuthActionUIState = AuthActionUIState.Loading
-                runCatching {
-                    repository.postRefreshToken(
-                        RequestAuthRefreshToken(authToken, refreshToken)
-                    )
-                }.fold(
-                    onSuccess = {
-                        if (it.status == "success" && it.data != null) {
-                            authTokenPref.saveAuthToken(it.data.authToken)
-                            authTokenPref.saveRefreshToken(it.data.refreshToken)
-                            newAuth = AuthUIState.Success(it.data)
-                            newRefresh = AuthActionUIState.Success(it.message)
-                        } else {
-                            newAuth = AuthUIState.Error(it.message)
-                            newRefresh = AuthActionUIState.Error(it.message)
-                        }
-                    },
-                    onFailure = {
-                        newAuth = AuthUIState.Error(it.message ?: "Unknown error")
-                        newRefresh = AuthActionUIState.Error(it.message ?: "Unknown error")
+            _uiState.update { it.copy(auth = AuthUIState.Loading, authRefreshToken = AuthActionUIState.Loading) }
+            var newAuth: AuthUIState = AuthUIState.Loading
+            var newRefresh: AuthActionUIState = AuthActionUIState.Loading
+            runCatching {
+                repository.postRefreshToken(RequestAuthRefreshToken(authToken, refreshToken))
+            }.fold(
+                onSuccess = { res ->
+                    val dataObj      = res.data?.takeIf { it.isJsonObject }?.asJsonObject
+                    val newAuthToken = dataObj?.get("authToken")?.asString    ?: ""
+                    val newRefTok    = dataObj?.get("refreshToken")?.asString ?: ""
+                    if (res.status == "success" && newAuthToken.isNotEmpty()) {
+                        authTokenPref.saveAuthToken(newAuthToken)
+                        authTokenPref.saveRefreshToken(newRefTok)
+                        newAuth    = AuthUIState.Success(ResponseAuthLogin(newAuthToken, newRefTok))
+                        newRefresh = AuthActionUIState.Success(res.message)
+                    } else {
+                        newAuth    = AuthUIState.Error(res.message)
+                        newRefresh = AuthActionUIState.Error(res.message)
                     }
-                )
-                state.copy(auth = newAuth, authRefreshToken = newRefresh)
-            }
+                },
+                onFailure = {
+                    newAuth    = AuthUIState.Error(it.message ?: "Unknown error")
+                    newRefresh = AuthActionUIState.Error(it.message ?: "Unknown error")
+                }
+            )
+            _uiState.update { it.copy(auth = newAuth, authRefreshToken = newRefresh) }
         }
     }
 }

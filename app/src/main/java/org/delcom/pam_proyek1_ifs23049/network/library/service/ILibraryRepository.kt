@@ -5,31 +5,18 @@ import org.delcom.pam_proyek1_ifs23049.network.data.ResponseMessage
 import org.delcom.pam_proyek1_ifs23049.network.library.data.*
 
 interface ILibraryRepository {
-
-    // Auth
-    suspend fun postRegister(request: RequestAuthRegister): ResponseMessage<ResponseAuthRegister?>
-    suspend fun postLogin(request: RequestAuthLogin): ResponseMessage<ResponseAuthLogin?>
-    suspend fun postLogout(request: RequestAuthLogout): ResponseMessage<String?>
-    suspend fun postRefreshToken(request: RequestAuthRefreshToken): ResponseMessage<ResponseAuthLogin?>
-
-    // User
-    suspend fun getUserMe(authToken: String): ResponseMessage<ResponseUser?>
-    suspend fun putUserMe(authToken: String, request: RequestUserChange): ResponseMessage<String?>
-    suspend fun putUserMePassword(authToken: String, request: RequestUserChangePassword): ResponseMessage<String?>
-    suspend fun putUserMePhoto(authToken: String, file: MultipartBody.Part): ResponseMessage<String?>
-
-    // Book
-    suspend fun getBooks(
-        authToken: String,
-        search: String? = null,
-        page: Int? = null,
-        perPage: Int? = null,
-        genre: String? = null,
-        isRead: String? = null
-    ): ResponseMessage<ResponseBooks?>
-    suspend fun postBook(authToken: String, request: RequestBook): ResponseMessage<ResponseBookAdd?>
-    suspend fun getBookById(authToken: String, bookId: String): ResponseMessage<ResponseBook?>
-    suspend fun putBook(authToken: String, bookId: String, request: RequestBook): ResponseMessage<String?>
-    suspend fun putBookCover(authToken: String, bookId: String, file: MultipartBody.Part): ResponseMessage<String?>
-    suspend fun deleteBook(authToken: String, bookId: String): ResponseMessage<String?>
+    suspend fun postRegister(request: RequestAuthRegister): ResponseMessage
+    suspend fun postLogin(request: RequestAuthLogin): ResponseMessage
+    suspend fun postLogout(request: RequestAuthLogout): ResponseMessage
+    suspend fun postRefreshToken(request: RequestAuthRefreshToken): ResponseMessage
+    suspend fun getUserMe(authToken: String): ResponseMessage
+    suspend fun putUserMe(authToken: String, request: RequestUserChange): ResponseMessage
+    suspend fun putUserMePassword(authToken: String, request: RequestUserChangePassword): ResponseMessage
+    suspend fun putUserMePhoto(authToken: String, file: MultipartBody.Part): ResponseMessage
+    suspend fun getBooks(authToken: String, search: String?, page: Int?, perPage: Int?, genre: String?, isRead: String?): ResponseMessage
+    suspend fun postBook(authToken: String, request: RequestBook): ResponseMessage
+    suspend fun getBookById(authToken: String, bookId: String): ResponseMessage
+    suspend fun putBook(authToken: String, bookId: String, request: RequestBook): ResponseMessage
+    suspend fun putBookCover(authToken: String, bookId: String, file: MultipartBody.Part): ResponseMessage
+    suspend fun deleteBook(authToken: String, bookId: String): ResponseMessage
 }

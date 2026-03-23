@@ -10,6 +10,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import org.delcom.pam_proyek1_ifs23049.helper.*
 import org.delcom.pam_proyek1_ifs23049.network.library.data.ResponseBookData
@@ -32,12 +35,37 @@ fun BooksScreen(
     var allBooks by remember { mutableStateOf(listOf<ResponseBookData>()) }
     var hasMore by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Filter disesuaikan dengan field isRead di API
     val filters = listOf("Semua", "Sudah Dibaca", "Belum Dibaca")
 
-    // Load ulang saat search atau filter berubah
-    LaunchedEffect(authToken, searchQuery, selectedFilter) {
+    // ✅ Refresh saat screen kembali aktif (ON_RESUME)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && authToken.isNotEmpty()) {
+                currentPage = 1
+                allBooks = emptyList()
+                hasMore = true
+                val isRead = when (selectedFilter) {
+                    "Sudah Dibaca" -> "true"
+                    "Belum Dibaca" -> "false"
+                    else -> null
+                }
+                libraryViewModel.getAllBooks(
+                    authToken = authToken,
+                    search = searchQuery.ifBlank { null },
+                    page = 1,
+                    perPage = 10,
+                    isRead = isRead
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // ✅ Refresh saat search atau filter berubah
+    LaunchedEffect(searchQuery, selectedFilter) {
         if (authToken.isNotEmpty()) {
             currentPage = 1
             allBooks = emptyList()
@@ -106,7 +134,6 @@ fun BooksScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
-            // Search bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -125,7 +152,6 @@ fun BooksScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            // Filter chips
             LazyRow(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -141,7 +167,6 @@ fun BooksScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // Daftar buku
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 if (allBooks.isEmpty() && uiState.books is BooksUIState.Loading) {
                     item { LoadingUI() }
@@ -193,13 +218,11 @@ fun BookListItem(book: ResponseBookData, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(book.title, style = MaterialTheme.typography.titleMedium)
                 Text(book.author, style = MaterialTheme.typography.bodyMedium)
-                // genre menggantikan category
                 if (!book.genre.isNullOrEmpty()) {
                     Text(book.genre, style = MaterialTheme.typography.bodySmall)
                 }
             }
             Spacer(Modifier.width(8.dp))
-            // isRead menggantikan isAvailable
             Badge(
                 containerColor = if (book.isRead)
                     MaterialTheme.colorScheme.primaryContainer
