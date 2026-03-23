@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
 import org.delcom.pam_proyek1_ifs23049.network.library.data.*
 import org.delcom.pam_proyek1_ifs23049.network.library.service.ILibraryRepository
+import org.delcom.pam_proyek1_ifs23049.prefs.AuthTokenPref
 import javax.inject.Inject
 
 sealed interface ProfileUIState {
@@ -56,7 +57,8 @@ data class UIStateLibrary(
 @HiltViewModel
 @Keep
 class LibraryViewModel @Inject constructor(
-    private val repository: ILibraryRepository
+    private val repository: ILibraryRepository,
+    private val authTokenPref: AuthTokenPref
 ) : ViewModel() {
 
     private val gson = Gson()
@@ -138,29 +140,48 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun getAllBooks(
-        authToken: String,
         search: String? = null,
         page: Int? = null,
         perPage: Int? = 10,
         isRead: String? = null
     ) {
         viewModelScope.launch {
+            val token = authTokenPref.getAuthToken()
+
+            if (token.isNullOrEmpty()) {
+                _uiState.update {
+                    it.copy(books = BooksUIState.Error("Token kosong / belum login"))
+                }
+                return@launch
+            }
+
+            android.util.Log.d("TOKEN_DEBUG", "token = $token")
+
             _uiState.update { it.copy(books = BooksUIState.Loading) }
+
             val result = runCatching {
-                repository.getBooks(authToken, search, page, perPage, null, isRead)
+                repository.getBooks(token, search, page, perPage, null, isRead)
             }.fold(
                 onSuccess = { res ->
-                    android.util.Log.d("BOOKS_DEBUG", "status=${res.status} data=${res.data}")
+
+                    // 🔥 DEBUG SEMUA RESPONSE
+                    android.util.Log.d("BOOKS_STATUS", "status=${res.status}")
+                    android.util.Log.d("BOOKS_MESSAGE", "message=${res.message}")
+                    android.util.Log.d("BOOKS_DATA", "data=${res.data}")
+
                     if (res.status == "success") {
-                        val books = res.data.field("books").parse<List<ResponseBookData>>() ?: emptyList()
+                        val books = res.data.parse<List<ResponseBookData>>() ?: emptyList()
                         BooksUIState.Success(books)
-                    } else BooksUIState.Error(res.message)
+                    } else {
+                        BooksUIState.Error(res.message)
+                    }
                 },
                 onFailure = {
-                    android.util.Log.e("BOOKS_DEBUG", "error: ${it.message}", it)
+                    android.util.Log.e("BOOKS_ERROR", "error=${it.message}", it)
                     BooksUIState.Error(it.message ?: "Unknown error")
                 }
             )
+
             _uiState.update { it.copy(books = result) }
         }
     }
@@ -183,22 +204,42 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun postBook(
-        authToken: String,
         title: String, author: String, description: String,
         genre: String, isbn: String?, publisher: String?, year: Int?
     ) {
         viewModelScope.launch {
+            val token = authTokenPref.getAuthToken()
+
+            if (token.isNullOrEmpty()) {
+                _uiState.update {
+                    it.copy(bookAdd = BookActionUIState.Error("Token kosong"))
+                }
+                return@launch
+            }
+
             _uiState.update { it.copy(bookAdd = BookActionUIState.Loading) }
+
             val result = runCatching {
-                repository.postBook(authToken, RequestBook(title, author, description, genre, isbn, publisher, year))
+                repository.postBook(
+                    token,
+                    RequestBook(title, author, description, genre, isbn, publisher, year)
+                )
             }.fold(
-                onSuccess = { if (it.status == "success") BookActionUIState.Success(it.message) else BookActionUIState.Error(it.message) },
-                onFailure = { BookActionUIState.Error(it.message ?: "Unknown error") }
+                onSuccess = {
+                    if (it.status == "success")
+                        BookActionUIState.Success(it.message)
+                    else
+                        BookActionUIState.Error(it.message)
+                },
+                onFailure = {
+                    BookActionUIState.Error(it.message ?: "Unknown error")
+                }
             )
+
             _uiState.update { it.copy(bookAdd = result) }
-            // ✅ Langsung refresh list setelah berhasil tambah
+
             if (result is BookActionUIState.Success) {
-                getAllBooks(authToken)
+                getAllBooks() // ✅ auto refresh
             }
         }
     }

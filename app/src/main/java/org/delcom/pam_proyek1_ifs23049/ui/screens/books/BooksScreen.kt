@@ -14,6 +14,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collect
 import org.delcom.pam_proyek1_ifs23049.helper.*
 import org.delcom.pam_proyek1_ifs23049.network.library.data.ResponseBookData
 import org.delcom.pam_proyek1_ifs23049.ui.components.*
@@ -25,34 +28,34 @@ fun BooksScreen(
     authViewModel: AuthViewModel,
     libraryViewModel: LibraryViewModel
 ) {
-    val authState by authViewModel.uiState.collectAsState()
     val uiState by libraryViewModel.uiState.collectAsState()
-    val authToken = (authState.auth as? AuthUIState.Success)?.data?.authToken ?: ""
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("Semua") }
     var currentPage by remember { mutableStateOf(1) }
     var allBooks by remember { mutableStateOf(listOf<ResponseBookData>()) }
     var hasMore by remember { mutableStateOf(true) }
+
     val listState = rememberLazyListState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val filters = listOf("Semua", "Sudah Dibaca", "Belum Dibaca")
 
-    // ✅ Refresh saat screen kembali aktif (ON_RESUME)
+    // ✅ REFRESH SAAT MASUK SCREEN
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && authToken.isNotEmpty()) {
+            if (event == Lifecycle.Event.ON_RESUME) {
                 currentPage = 1
                 allBooks = emptyList()
                 hasMore = true
+
                 val isRead = when (selectedFilter) {
                     "Sudah Dibaca" -> "true"
                     "Belum Dibaca" -> "false"
                     else -> null
                 }
+
                 libraryViewModel.getAllBooks(
-                    authToken = authToken,
                     search = searchQuery.ifBlank { null },
                     page = 1,
                     perPage = 10,
@@ -64,28 +67,27 @@ fun BooksScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // ✅ Refresh saat search atau filter berubah
+    // ✅ SEARCH & FILTER
     LaunchedEffect(searchQuery, selectedFilter) {
-        if (authToken.isNotEmpty()) {
-            currentPage = 1
-            allBooks = emptyList()
-            hasMore = true
-            val isRead = when (selectedFilter) {
-                "Sudah Dibaca" -> "true"
-                "Belum Dibaca" -> "false"
-                else -> null
-            }
-            libraryViewModel.getAllBooks(
-                authToken = authToken,
-                search = searchQuery.ifBlank { null },
-                page = 1,
-                perPage = 10,
-                isRead = isRead
-            )
+        currentPage = 1
+        allBooks = emptyList()
+        hasMore = true
+
+        val isRead = when (selectedFilter) {
+            "Sudah Dibaca" -> "true"
+            "Belum Dibaca" -> "false"
+            else -> null
         }
+
+        libraryViewModel.getAllBooks(
+            search = searchQuery.ifBlank { null },
+            page = 1,
+            perPage = 10,
+            isRead = isRead
+        )
     }
 
-    // Append data ke list
+    // ✅ UPDATE LIST
     LaunchedEffect(uiState.books) {
         when (val books = uiState.books) {
             is BooksUIState.Success -> {
@@ -97,21 +99,24 @@ fun BooksScreen(
         }
     }
 
-    // Infinite scroll
+    // ✅ INFINITE SCROLL
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastIndex ->
-                if (lastIndex != null && lastIndex >= allBooks.size - 3 &&
-                    hasMore && uiState.books !is BooksUIState.Loading
+                if (lastIndex != null &&
+                    lastIndex >= allBooks.size - 3 &&
+                    hasMore &&
+                    uiState.books !is BooksUIState.Loading
                 ) {
                     currentPage++
+
                     val isRead = when (selectedFilter) {
                         "Sudah Dibaca" -> "true"
                         "Belum Dibaca" -> "false"
                         else -> null
                     }
+
                     libraryViewModel.getAllBooks(
-                        authToken = authToken,
                         search = searchQuery.ifBlank { null },
                         page = currentPage,
                         perPage = 10,
@@ -132,8 +137,14 @@ fun BooksScreen(
             }
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+
+            // 🔍 SEARCH
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -152,6 +163,7 @@ fun BooksScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
+            // 🎯 FILTER
             LazyRow(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -167,10 +179,17 @@ fun BooksScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            // 📚 LIST
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize()
+            ) {
+
                 if (allBooks.isEmpty() && uiState.books is BooksUIState.Loading) {
                     item { LoadingUI() }
-                } else if (allBooks.isEmpty()) {
+                }
+
+                else if (allBooks.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier.fillParentMaxSize(),
@@ -179,12 +198,15 @@ fun BooksScreen(
                             Text("Tidak ada buku ditemukan")
                         }
                     }
-                } else {
+                }
+
+                else {
                     items(allBooks, key = { it.id }) { book ->
-                        BookListItem(book = book, onClick = {
+                        BookListItem(book = book) {
                             RouteHelper.to(navController, "books/${book.id}")
-                        })
+                        }
                     }
+
                     if (hasMore && uiState.books is BooksUIState.Loading) {
                         item {
                             Box(
@@ -222,7 +244,9 @@ fun BookListItem(book: ResponseBookData, onClick: () -> Unit) {
                     Text(book.genre, style = MaterialTheme.typography.bodySmall)
                 }
             }
+
             Spacer(Modifier.width(8.dp))
+
             Badge(
                 containerColor = if (book.isRead)
                     MaterialTheme.colorScheme.primaryContainer

@@ -22,6 +22,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        authViewModel.loadTokenFromPreferences()
+
         enableEdgeToEdge()
         setContent {
             val systemDark = isSystemInDarkTheme()

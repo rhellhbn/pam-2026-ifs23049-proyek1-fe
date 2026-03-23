@@ -22,9 +22,7 @@ fun BooksAddScreen(
     authViewModel: AuthViewModel,
     libraryViewModel: LibraryViewModel
 ) {
-    val authState by authViewModel.uiState.collectAsState()
     val uiState by libraryViewModel.uiState.collectAsState()
-    val authToken = (authState.auth as? AuthUIState.Success)?.data?.authToken ?: ""
     val coroutineScope = rememberCoroutineScope()
 
     var title by remember { mutableStateOf("") }
@@ -38,8 +36,10 @@ fun BooksAddScreen(
 
     val isLoading = hasSubmitted && uiState.bookAdd is BookActionUIState.Loading
 
+    // ✅ HANDLE RESPONSE
     LaunchedEffect(uiState.bookAdd) {
         if (!hasSubmitted) return@LaunchedEffect
+
         when (val state = uiState.bookAdd) {
             is BookActionUIState.Success -> {
                 coroutineScope.launch {
@@ -49,9 +49,13 @@ fun BooksAddScreen(
                         "Buku berhasil ditambahkan!"
                     )
                 }
+
                 libraryViewModel.resetBookAdd()
+                hasSubmitted = false
+
                 RouteHelper.back(navController)
             }
+
             is BookActionUIState.Error -> {
                 coroutineScope.launch {
                     SuspendHelper.showSnackBar(
@@ -62,6 +66,7 @@ fun BooksAddScreen(
                 }
                 hasSubmitted = false
             }
+
             else -> {}
         }
     }
@@ -83,49 +88,70 @@ fun BooksAddScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
             OutlinedTextField(
-                value = title, onValueChange = { title = it },
+                value = title,
+                onValueChange = { title = it },
                 label = { Text("Judul Buku*") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
+
             OutlinedTextField(
-                value = author, onValueChange = { author = it },
+                value = author,
+                onValueChange = { author = it },
                 label = { Text("Penulis*") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
+
             OutlinedTextField(
-                value = genre, onValueChange = { genre = it },
+                value = genre,
+                onValueChange = { genre = it },
                 label = { Text("Genre") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
+
             OutlinedTextField(
-                value = isbn, onValueChange = { isbn = it },
+                value = isbn,
+                onValueChange = { isbn = it },
                 label = { Text("ISBN") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
+
             OutlinedTextField(
-                value = publisher, onValueChange = { publisher = it },
+                value = publisher,
+                onValueChange = { publisher = it },
                 label = { Text("Penerbit") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
+
             OutlinedTextField(
-                value = year, onValueChange = { year = it },
+                value = year,
+                onValueChange = { year = it },
                 label = { Text("Tahun Terbit") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(), singleLine = true
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
+
             OutlinedTextField(
-                value = description, onValueChange = { description = it },
+                value = description,
+                onValueChange = { description = it },
                 label = { Text("Deskripsi*") },
-                modifier = Modifier.fillMaxWidth(), minLines = 4
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 4
             )
 
             Button(
                 onClick = {
                     if (!isLoading) {
                         hasSubmitted = true
+
                         libraryViewModel.postBook(
-                            authToken = authToken,
                             title = title,
                             author = author,
                             description = description,
@@ -137,13 +163,19 @@ fun BooksAddScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading && title.isNotBlank() && author.isNotBlank() && description.isNotBlank()
+                enabled = !isLoading &&
+                        title.isNotBlank() &&
+                        author.isNotBlank() &&
+                        description.isNotBlank()
             ) {
-                if (isLoading) CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                else Text("Simpan Buku")
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Simpan Buku")
+                }
             }
         }
     }
